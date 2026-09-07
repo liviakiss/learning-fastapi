@@ -4,8 +4,10 @@
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from recipe_helper import router as recipe_router
 
 app = FastAPI()
+app.include_router(recipe_router)
 
 # --- Day 1 endpoints ---
 @app.get("/")
