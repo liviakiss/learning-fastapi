@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from recipe_helper import router as recipe_router
 
-app = FastAPI()
+app = FastAPI()  # must come BEFORE include_router
 app.include_router(recipe_router)
 
 # --- Day 1 endpoints ---
