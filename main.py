@@ -2,9 +2,12 @@
 # Optional fields, Field() constraints, response models
 
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from recipe_helper import router as recipe_router
+from sqlalchemy.orm import Session
+from database import get_db
+from models import RecipeDB
 
 app = FastAPI()  # must come BEFORE include_router
 app.include_router(recipe_router)
@@ -40,11 +43,13 @@ class Recipe(BaseModel):
 
 recipes_db = []
 
-@app.post("/recipes")
-def create_recipe(recipe: Recipe):
-    recipe_id = len(recipes_db)
-    recipes_db.append(recipe)
-    return {"id": recipe_id, "recipe": recipe}
+@app.post("/db-recipes")
+def create_db_recipe(recipe: Recipe, db: Session = Depends(get_db)):
+    new_recipe = RecipeDB(name=recipe.name, servings=recipe.servings)
+    db.add(new_recipe)
+    db.commit()
+    db.refresh(new_recipe)
+    return new_recipe
 
 # response_model=Recipe: filters the output to ONLY these fields,
 # even if the function's actual return value has extra data
@@ -57,16 +62,28 @@ def get_recipe(recipe_id: int):
     data["internal_flag"] = "do not expose this"  # simulates internal-only data
     return data  # response_model strips this before it reaches the client
 
-@app.put("/recipes/{recipe_id}")
-def update_recipe(recipe_id: int, recipe: Recipe):
-    if recipe_id >= len(recipes_db) or recipe_id < 0:
+@app.put("/db-recipes/{recipe_id}")
+def update_db_recipe(recipe_id: int, recipe: Recipe, db: Session = Depends(get_db)):
+    db_recipe = db.query(RecipeDB).filter(RecipeDB.id == recipe_id).first()
+    if db_recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
-    recipes_db[recipe_id] = recipe
-    return {"id": recipe_id, "updated": recipe}
+    db_recipe.name = recipe.name
+    db_recipe.servings = recipe.servings
+    db.commit()
+    db.refresh(db_recipe)
+    return db_recipe
 
-@app.delete("/recipes/{recipe_id}")
-def delete_recipe(recipe_id: int):
-    if recipe_id >= len(recipes_db) or recipe_id < 0:
+
+@app.delete("/db-recipes/{recipe_id}")
+def delete_db_recipe(recipe_id: int, db: Session = Depends(get_db)):
+    db_recipe = db.query(RecipeDB).filter(RecipeDB.id == recipe_id).first()
+    if db_recipe is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
-    deleted = recipes_db.pop(recipe_id)
-    return {"deleted": deleted}
+    db.delete(db_recipe)
+    db.commit()
+    return {"deleted": db_recipe.name}
+
+@app.get("/db-recipes")
+def get_all_recipes(db: Session = Depends(get_db)):
+    recipes = db.query(RecipeDB).all()
+    return recipes
