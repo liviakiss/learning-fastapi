@@ -13,3 +13,9 @@ class ReviewDB(Base):
     id = Column(Integer, primary_key=True)
     recipe_id = Column(Integer, ForeignKey("recipes.id"))  # matches Day 1-2's SQL foreign key
     comment = Column(String)
+
+class UserDB(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)

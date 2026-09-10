@@ -1,9 +1,10 @@
 # main.py — FastAPI Learning Log
 # Day 1: first endpoints, decorators, path parameters
 # Day 2: query parameters, Pydantic bodies, full CRUD, error handling
-# Day 3: optional fields, Field constraints
-# Day 4 project: see recipe_helper.py (via APIRouter)
+# Day 3: optional fields, Field constraints, response models
+# project: see recipe_helper.py (via APIRouter)
 # Database: SQLAlchemy models, real persistent CRUD
+# Auth: password hashing, register/login, JWT, protected routes
 
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends
@@ -12,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from recipe_helper import router as recipe_router
 from database import get_db
-from models import RecipeDB
+from models import RecipeDB, UserDB
+from auth import hash_password, verify_password, create_access_token, get_current_user
 
 app = FastAPI()  # must come BEFORE include_router
 app.include_router(recipe_router)
@@ -44,7 +46,7 @@ def paginate(page: int = 1):
     return {"page": page}
 
 # ============================================
-# Day 3 — Pydantic model with constraints + optional field
+# Day 3 — Pydantic models
 # ============================================
 class Recipe(BaseModel):
     name: str
@@ -87,3 +89,45 @@ def delete_db_recipe(recipe_id: int, db: Session = Depends(get_db)):
     db.delete(db_recipe)
     db.commit()
     return {"deleted": db_recipe.name}
+
+# ============================================
+# Auth Day 5-6 — password hashing, register/login, JWT, protected routes
+# ============================================
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/register", response_model=UserOut)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(UserDB).filter(UserDB.username == user.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    new_user = UserDB(
+        username=user.username,
+        hashed_password=hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@app.post("/login")
+def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(UserDB).filter(UserDB.username == credentials.username).first()
+    if user is None or not verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_access_token({"sub": user.username})
+    return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/me")
+def read_current_user(current_user: str = Depends(get_current_user)):
+    return {"username": current_user}
