@@ -1,4 +1,4 @@
-# models.py — SQLAlchemy table models (distinct from Pydantic request/response models)
+# models.py — SQLAlchemy table models
 from sqlalchemy import Column, Integer, String, ForeignKey
 from database import Base
 
@@ -11,7 +11,7 @@ class RecipeDB(Base):
 class ReviewDB(Base):
     __tablename__ = "reviews"
     id = Column(Integer, primary_key=True)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"))  # matches Day 1-2's SQL foreign key
+    recipe_id = Column(Integer, ForeignKey("recipes.id"))
     comment = Column(String)
 
 class UserDB(Base):
@@ -19,3 +19,10 @@ class UserDB(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    intolerances_json = Column(String, nullable=True)  # small, fixed set -> JSON blob is fine
+
+class FavoriteDB(Base):
+    __tablename__ = "favorites"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))  # open-ended, growable -> real table
+    recipe_name = Column(String, nullable=False)
